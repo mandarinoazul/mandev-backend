@@ -90,14 +90,13 @@ async function getOrCreateSession(userId) {
       }),
       puppeteer: {
         headless: "new",
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || '/usr/bin/google-chrome-stable',
         userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         args: [
           '--no-sandbox',
           '--disable-setuid-sandbox',
           '--disable-dev-shm-usage',
-          '--disable-accelerated-2d-canvas',
-          '--no-first-run',
-          '--disable-gpu',
+          '--disable-gpu'
         ],
       },
     });
@@ -161,14 +160,21 @@ async function getOrCreateSession(userId) {
     sessions.set(userId, client);
 
     // Initialize client
-    client.initialize().catch((err) => {
-      console.error(`[${userId}] Init error:`, err);
-      sessions.delete(userId);
-      if (!qrResolved) {
-        clearTimeout(timeout);
-        reject(err);
+    (async () => {
+      try {
+        await client.initialize();
+      } catch (err) {
+        console.error('\n======================================================');
+        console.error(`🚨 [${userId}] CRITICAL PUPPETEER INITIALIZATION ERROR:`);
+        console.error(err);
+        console.error('======================================================\n');
+        sessions.delete(userId);
+        if (!qrResolved) {
+          clearTimeout(timeout);
+          reject(err);
+        }
       }
-    });
+    })();
   });
 }
 
