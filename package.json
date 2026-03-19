@@ -1,0 +1,17 @@
+{
+  "name": "mi-agente-backend",
+  "version": "1.0.0",
+  "description": "Multi-tenant WhatsApp backend for Mi Agente with AnythingLLM integration",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "whatsapp-web.js": "^1.26.0",
+    "qrcode": "^1.5.4",
+    "axios": "^1.7.0",
+    "cors": "^2.8.5"
+  }
+}
