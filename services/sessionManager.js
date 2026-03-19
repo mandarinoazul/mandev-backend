@@ -4,9 +4,13 @@
  * Multi-tenant session handling using Map<userId, Client>.
  * Each user gets their own whatsapp-web.js Client instance
  * with isolated auth stored in ./sessions/{userId}.
+ *
+ * The message_create listener is registered here (not in routes)
+ * so it survives automatic session restores via LocalAuth.
  */
 const { Client, LocalAuth } = require('whatsapp-web.js');
 const path = require('path');
+const { sendToAnythingLLM } = require('./anythingLLM');
 
 /** @type {Map<string, import('whatsapp-web.js').Client>} */
 const sessions = new Map();
@@ -16,6 +20,39 @@ const pendingQRs = new Map();
 
 /** @type {Map<string, boolean>} Tracks if a session is ready */
 const sessionReady = new Map();
+
+/**
+ * Attach the message_create listener to a client.
+ * This intercepts ALL messages (incoming + outgoing) so we filter.
+ *
+ * @param {string} userId
+ * @param {import('whatsapp-web.js').Client} client
+ */
+function attachMessageListener(userId, client) {
+  // Avoid duplicate listeners if called more than once
+  client.removeAllListeners('message_create');
+
+  client.on('message_create', async (msg) => {
+    // --- Filters ---
+    if (msg.fromMe) return;                       // Skip our own replies
+    if (msg.from.endsWith('@g.us')) return;        // Skip group messages
+    if (!msg.body || !msg.body.trim()) return;     // Skip empty / media-only
+
+    const preview = msg.body.substring(0, 80).replace(/\n/g, ' ');
+    console.log(`💬 [${userId}] Incoming from ${msg.from}: "${preview}"`);
+
+    try {
+      const aiResponse = await sendToAnythingLLM(userId, msg.body);
+      await msg.reply(aiResponse);
+      console.log(`✅ [${userId}] Replied successfully`);
+    } catch (error) {
+      console.error(`❌ [${userId}] Reply error:`, error.message);
+      await msg.reply('⚠️ Error procesando tu mensaje. Intenta de nuevo.');
+    }
+  });
+
+  console.log(`👂 [${userId}] message_create listener attached`);
+}
 
 /**
  * Create or retrieve a WhatsApp session for a user.
@@ -102,6 +139,11 @@ async function getOrCreateSession(userId) {
       pendingQRs.delete(userId);
     });
 
+    // ── Attach message listener BEFORE initialize ──
+    // This ensures the listener is active for both fresh QR sessions
+    // AND auto-restored sessions via LocalAuth.
+    attachMessageListener(userId, client);
+
     client.on('disconnected', (reason) => {
       console.log(`❌ [${userId}] Disconnected: ${reason}`);
       sessions.delete(userId);
@@ -143,19 +185,6 @@ function getClient(userId) {
 }
 
 /**
- * Find which userId owns a specific WhatsApp message recipient.
- * This iterates all sessions to find the matching one.
- *
- * @param {string} fromNumber - The WhatsApp number (e.g., '1234567890@c.us')
- * @returns {string|null} The userId that owns this session
- */
-function findUserIdByMessage(fromNumber) {
-  // In multi-tenant mode, each client handles its own messages
-  // The mapping is handled in the message listener setup
-  return null;
-}
-
-/**
  * Get all active session user IDs.
  * @returns {string[]}
  */
@@ -166,7 +195,6 @@ function getActiveUserIds() {
 module.exports = {
   getOrCreateSession,
   getClient,
-  findUserIdByMessage,
   getActiveUserIds,
   sessions,
   sessionReady,

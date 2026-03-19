@@ -4,11 +4,14 @@
  * POST /api/whatsapp/generate-qr  — Generate QR for a userId
  * GET  /api/whatsapp/status/:userId — Check session status
  * GET  /api/whatsapp/sessions — List all active sessions
+ *
+ * NOTE: The message listener (message_create) now lives in
+ * sessionManager.js so it auto-attaches on session creation
+ * and survives auto-reconnects via LocalAuth.
  */
 const express = require('express');
 const router = express.Router();
 const { getOrCreateSession, getActiveUserIds, getClient } = require('../services/sessionManager');
-const { sendToAnythingLLM } = require('../services/anythingLLM');
 
 /**
  * POST /api/whatsapp/generate-qr
@@ -34,11 +37,6 @@ router.post('/generate-qr', async (req, res) => {
     console.log(`📱 [${sanitizedId}] Requesting QR generation...`);
 
     const result = await getOrCreateSession(sanitizedId);
-
-    // Set up message listener for this user's session
-    if (result.status === 'qr_ready') {
-      setupMessageListener(sanitizedId, result.client);
-    }
 
     res.json({
       qr: result.qr,
@@ -78,42 +76,5 @@ router.get('/sessions', (req, res) => {
     sessions: activeIds,
   });
 });
-
-/**
- * Set up the incoming message listener for a WhatsApp session.
- * When a message comes in, it's forwarded to AnythingLLM
- * with the user's isolated thread.
- *
- * @param {string} userId
- * @param {import('whatsapp-web.js').Client} client
- */
-function setupMessageListener(userId, client) {
-  // Remove any existing listener to avoid duplicates
-  client.removeAllListeners('message');
-
-  client.on('message', async (msg) => {
-    // Skip group messages, only process direct messages
-    if (msg.isGroupMsg) return;
-
-    // Skip media-only messages
-    if (!msg.body || msg.body.trim() === '') return;
-
-    console.log(`💬 [${userId}] Incoming: "${msg.body.substring(0, 50)}..."`);
-
-    try {
-      // Forward to AnythingLLM with user context isolation
-      const aiResponse = await sendToAnythingLLM(userId, msg.body);
-
-      // Reply via WhatsApp
-      await msg.reply(aiResponse);
-      console.log(`✅ [${userId}] Replied successfully`);
-    } catch (error) {
-      console.error(`❌ [${userId}] Reply error:`, error.message);
-      await msg.reply('⚠️ Error procesando tu mensaje. Intenta de nuevo.');
-    }
-  });
-
-  console.log(`👂 [${userId}] Message listener active`);
-}
 
 module.exports = router;
