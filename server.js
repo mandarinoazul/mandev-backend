@@ -17,8 +17,8 @@ process.on('unhandledRejection', (reason, promise) => {
 });
 
 const app = express();
-// Railway often passes PORT in process.env.PORT. Fallback is now 8080.
-const PORT = process.env.PORT || 8080;
+// Railway often passes PORT in process.env.PORT. Fallback is now 3000.
+const PORT = process.env.PORT || 3000;
 
 // Middleware
 app.use(cors());
@@ -32,9 +32,9 @@ app.get('/api/health', (req, res) => {
 // WhatsApp routes
 app.use('/api/whatsapp', whatsappRoutes);
 
-// Start server - bind to 0.0.0.0 for Docker/Railway
+// Start server - bind dynamically so Railway can map it to 443
 try {
-  app.listen(PORT, '0.0.0.0', () => {
+  app.listen(PORT, () => {
     console.log(`🚀 Servidor escuchando en ${PORT}`);
     console.log(`   Health: http://localhost:${PORT}/api/health`);
     console.log(`   WhatsApp QR: POST http://localhost:${PORT}/api/whatsapp/generate-qr`);
