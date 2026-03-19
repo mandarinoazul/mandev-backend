@@ -7,8 +7,18 @@ const express = require('express');
 const cors = require('cors');
 const whatsappRoutes = require('./routes/whatsapp');
 
+// Prevent Node from crashing on unhandled errors (e.g. DNS or network drops)
+// This keeps the Railway container ALIVE.
+process.on('uncaughtException', (err) => {
+  console.error('🔥 [CRITICAL] Uncaught Exception:', err);
+});
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('⚠️ [CRITICAL] Unhandled Rejection at:', promise, 'reason:', reason);
+});
+
 const app = express();
-const PORT = process.env.PORT || 3001;
+// Railway often passes PORT in process.env.PORT. Fallback is now 8080.
+const PORT = process.env.PORT || 8080;
 
 // Middleware
 app.use(cors());
@@ -23,8 +33,12 @@ app.get('/api/health', (req, res) => {
 app.use('/api/whatsapp', whatsappRoutes);
 
 // Start server - bind to 0.0.0.0 for Docker/Railway
-app.listen(PORT, '0.0.0.0', () => {
-  console.log(`🚀 Mi Agente Backend running on port ${PORT}`);
-  console.log(`   Health: http://localhost:${PORT}/api/health`);
-  console.log(`   WhatsApp QR: POST http://localhost:${PORT}/api/whatsapp/generate-qr`);
-});
+try {
+  app.listen(PORT, '0.0.0.0', () => {
+    console.log(`🚀 Servidor escuchando en ${PORT}`);
+    console.log(`   Health: http://localhost:${PORT}/api/health`);
+    console.log(`   WhatsApp QR: POST http://localhost:${PORT}/api/whatsapp/generate-qr`);
+  });
+} catch (error) {
+  console.error('❌ Error fatal al intentar bindear el puerto:', error);
+}
