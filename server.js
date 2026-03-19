@@ -14,16 +14,16 @@ const PORT = process.env.PORT || 3001;
 app.use(cors());
 app.use(express.json());
 
-// Health check
+// Health check - Railway needs a fast 200 OK
 app.get('/api/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.status(200).send('OK');
 });
 
 // WhatsApp routes
 app.use('/api/whatsapp', whatsappRoutes);
 
-// Start server
-app.listen(PORT, () => {
+// Start server - bind to 0.0.0.0 for Docker/Railway
+app.listen(PORT, '0.0.0.0', () => {
   console.log(`🚀 Mi Agente Backend running on port ${PORT}`);
   console.log(`   Health: http://localhost:${PORT}/api/health`);
   console.log(`   WhatsApp QR: POST http://localhost:${PORT}/api/whatsapp/generate-qr`);
