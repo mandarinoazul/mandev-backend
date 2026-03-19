@@ -84,6 +84,7 @@ async function getOrCreateSession(userId) {
     const sessionsDir = path.join(__dirname, '..', 'sessions');
 
     const client = new Client({
+      authTimeoutMs: 60000,
       authStrategy: new LocalAuth({
         clientId: userId,
         dataPath: sessionsDir,
@@ -109,7 +110,15 @@ async function getOrCreateSession(userId) {
     }, 30000);
 
     client.on('qr', (qr) => {
-      // Convert QR string to base64 image
+      // Print QR in the console logs (e.g. Railway)
+      try {
+        const qrcodeTerminal = require('qrcode-terminal');
+        qrcodeTerminal.generate(qr, { small: true });
+      } catch (e) {
+        // ignore if not installed
+      }
+
+      // Convert QR string to base64 image for the App
       const QRCode = require('qrcode');
       QRCode.toDataURL(qr, { width: 300 }, (err, url) => {
         if (err) {
@@ -162,7 +171,9 @@ async function getOrCreateSession(userId) {
     // Initialize client
     (async () => {
       try {
+        console.log(`⏳ [${userId}] Intentando iniciar Puppeteer...`);
         await client.initialize();
+        console.log(`✅ [${userId}] Puppeteer lanzado, esperando QR o Sesión...`);
       } catch (err) {
         console.error('\n======================================================');
         console.error(`🚨 [${userId}] CRITICAL PUPPETEER INITIALIZATION ERROR:`);
